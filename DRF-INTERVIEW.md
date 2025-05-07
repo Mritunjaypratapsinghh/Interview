@@ -456,7 +456,9 @@
       - **retrieve:** read only, single resource (http verb: get, but will expect an id in the url). Returns a single dict.
       - **create:** creates a new resource (http verb: post)
       - **update/partial_update:** edits a resource (http verbs: put/patch)
-      - **destroy:** removes a resource (http verb: delete) 
+      - **destroy:** removes a resource (http verb: delete)
+     
+    
 
      **[⬆ Back to Top](#table-of-contents)**
 
@@ -464,6 +466,37 @@
     - **`GenericAPIView`:** for APIView, this gives you shortcuts that map closely to your database models. Adds commonly required behavior for standard list and detail views. Gives you some attributes like, the `serializer_class`, also gives `pagination_class`, `filter_backend`, etc
 
     - **`GenericViewSet`:** There are many GenericViewSet, the most common being `ModelViewSet`. They inherit from `GenericAPIView` and have a full implementation of all of the actions: list, retrieve, destroy, updated, etc.
+   
+40. Decorator Example
+
+
+    def require_admin(func):
+        
+        def wrapper(self,user):
+            if user.get("is_admin"):
+                return func(self,user)
+            else:
+                return "Access Denied"
+        
+        return wrapper
+    
+    
+    class MyView:
+    
+        @require_admin    
+        def get(self,user):
+            
+            return "Welcome Admin"
+    
+    
+    admin = {"is_admin":True}
+    user = {"is_admin":False}
+    
+    a=MyView()
+    
+    print(a.get(admin))
+    
+    print(a.get(user))
 
      **[⬆ Back to Top](#table-of-contents)**
 
