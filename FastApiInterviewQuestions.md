@@ -315,3 +315,122 @@ def get_db():
 def get_current_user(db=Depends(get_db)):
     ...
 ```
+
+# Bonus: System Design with FastAPI
+
+## How would you structure a scalable FastAPI application?
+
+### Recommended Folder Structure
+
+```
+app/
+├── main.py              # Entry point
+├── api/                 # Routers
+│   ├── v1/
+│   │   ├── routes/
+│   │   │   ├── user.py
+│   │   │   └── item.py
+│   │   └── api.py
+├── core/                # Configuration, startup events
+│   ├── config.py
+│   └── security.py
+├── models/              # SQLAlchemy ORM models
+│   ├── user.py
+│   └── item.py
+├── schemas/             # Pydantic models
+│   ├── user.py
+│   └── item.py
+├── services/            # Business logic
+│   ├── user_service.py
+│   └── item_service.py
+├── db/                  # Database session management
+│   ├── session.py
+│   └── base.py
+└── utils/               # Helpers/utilities
+```
+
+### Benefits
+
+* Separation of concerns (routes, logic, DB, validation)
+* Scalable for versioning, microservices, testing
+* Easier onboarding and collaboration
+
+---
+
+## How would you deploy a FastAPI app on AWS / GCP / Heroku?
+
+### Common Steps
+
+1. **Dockerize the app**
+
+```dockerfile
+# Dockerfile
+FROM python:3.11
+WORKDIR /app
+COPY . .
+RUN pip install -r requirements.txt
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+2. **Deployment Targets**
+
+* **Heroku**: Use `heroku container:push web -a app-name`
+* **GCP**: Use Google Cloud Run or App Engine
+* **AWS**:
+
+  * Elastic Beanstalk (easiest)
+  * ECS with Fargate (scalable)
+  * Lambda (serverless with Mangum wrapper)
+
+3. **CI/CD**: GitHub Actions or GitLab CI for build, test, and deploy pipelines.
+
+---
+
+## How do you implement logging and monitoring in FastAPI?
+
+### Logging
+
+```python
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+@app.get("/test")
+def test():
+    logger.info("Test endpoint hit")
+    return {"message": "logged"}
+```
+
+### Monitoring
+
+* **Prometheus + Grafana**:
+
+  * Use `prometheus_fastapi_instrumentator` for metrics
+
+```python
+from prometheus_fastapi_instrumentator import Instrumentator
+
+instrumentator = Instrumentator()
+instrumentator.instrument(app).expose(app)
+```
+
+* **Sentry** for error tracking:
+
+```python
+import sentry_sdk
+from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
+
+sentry_sdk.init(dsn="<your_sentry_dsn>")
+app.add_middleware(SentryAsgiMiddleware)
+```
+
+* **Uvicorn logs**: Use `--log-level info` in production
+
+---
+
+This setup ensures modularity, observability, and cloud readiness for large-scale FastAPI applications.
+
