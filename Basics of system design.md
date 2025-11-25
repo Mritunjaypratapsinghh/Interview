@@ -373,5 +373,13 @@ You can design systems like:
 **Amazon, Flipkart, Netflix, Uber**, etc.
 
 
+# Interactive System Design Quiz
+
+This repo includes:
+- `system_design_notes.md` — detailed notes (Markdown)
+- `docs/system_design_quiz.html` — **interactive quiz** (hosted via GitHub Pages)
+
+👉 **Open the interactive quiz:** https://mritunjaypratapsinghh.github.io/Interview/system_design_quiz.html
+
 
 
