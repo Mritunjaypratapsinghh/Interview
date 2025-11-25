@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>System Design — Interactive Quiz</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;margin:18px;background:#f8fafc}
+    .wrap{max-width:900px;margin:28px auto;background:white;padding:20px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
+    h1{margin-top:0}
+    .qnum{font-weight:600;margin-bottom:6px}
+    .question{font-size:18px;margin:6px 0 12px}
+    .opts{list-style:none;padding:0}
+    .opts li{margin:8px 0}
+    .btn{padding:8px 12px;margin-right:8px;cursor:pointer;border-radius:6px;border:1px solid #ccc;background:#f7f7f7}
+    .btn-primary{background:#0b79d0;color:white;border-color:#0b79d0}
+    .feedback{margin-top:12px;font-weight:600}
+    .score{font-size:18px;margin-top:12px}
+    .progress{font-size:13px;color:#666;margin-bottom:12px}
+    .footer{margin-top:18px;color:#555;font-size:14px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>System Design — Interactive Quiz</h1>
+    <p class="progress" id="progress">Question 1 of 10</p>
+
+    <div class="qnum" id="qnum">Q1</div>
+    <div class="question" id="question"></div>
+    <ul class="opts" id="opts"></ul>
+
+    <div style="margin-top:12px;">
+      <button class="btn btn-primary" id="submitBtn">Submit</button>
+      <button class="btn" id="nextBtn">Next</button>
+      <button class="btn" id="restartBtn">Restart</button>
+    </div>
+
+    <div class="feedback" id="feedback" aria-live="polite"></div>
+    <div class="score" id="score"></div>
+
+    <div class="footer">
+      <p>Tip: This file is served from the <code>/docs</code> folder so you can host it with GitHub Pages.</p>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const quiz = [
+    { q:"What are the three major goals of system design?", opts:["Scalability, Availability, Fault Tolerance","Scalability, Logging, UI Design","Fault Tolerance, CSS Optimization, API Versioning","Authentication, Authorization, Auditing"], a:0 },
+    { q:"Which of the following is NOT a client device?", opts:["Mobile phone","Laptop","IoT Device","Database Server"], a:3 },
+    { q:"What is the primary purpose of DNS?", opts:["Encrypt internet traffic","Map domain names to IP addresses","Compress large images","Authenticate users"], a:1 },
+    { q:"What happens when server load exceeds CPU/RAM limits?", opts:["High latency and potential crashes","Faster performance","Lower network latency automatically","Database becomes automatically sharded"], a:0 },
+    { q:"Vertical scaling involves:", opts:["Adding more servers","Increasing server RAM/CPU","Using CDN locations","Splitting DB into shards"], a:1 },
+    { q:"Horizontal scaling means:", opts:["Making server bigger","Adding more servers","Adding SSD storage","Installing Redis"], a:1 },
+    { q:"Which is NOT a load balancing algorithm?", opts:["Round Robin","Least Connections","Weighted Routing","Vector Clock Choosing"], a:3 },
+    { q:"Queues help with:", opts:["Direct server-to-server communication","Async task processing","Faster DNS resolution","Docker scheduling"], a:1 },
+    { q:"Pub/Sub is useful for:", opts:["One-to-one communication","One-to-many events","Improving SQL joins","Reducing RAM usage"], a:1 },
+    { q:"Which algorithm is commonly used for rate limiting?", opts:["Token Bucket","Binary Search","BFS","Leaky Bucket (but not Token Bucket)"], a:0 }
+  ];
+
+  const root = document.getElementById('opts')?.parentNode;
+  if (!root) return;
+
+  const el = {
+    qnum: document.getElementById('qnum'),
+    question: document.getElementById('question'),
+    opts: document.getElementById('opts'),
+    submitBtn: document.getElementById('submitBtn'),
+    nextBtn: document.getElementById('nextBtn'),
+    feedback: document.getElementById('feedback'),
+    score: document.getElementById('score'),
+    progress: document.getElementById('progress'),
+    restartBtn: document.getElementById('restartBtn')
+  };
+
+  let idx = 0, score = 0, answered = false;
+
+  function renderQuestion(){
+    answered=false;
+    el.feedback.textContent='';
+    el.score.textContent='';
+    const item=quiz[idx];
+    el.progress.textContent = `Question ${idx+1} of ${quiz.length}`;
+    el.qnum.textContent = `Q${idx+1}`;
+    el.question.textContent = item.q;
+    el.opts.innerHTML = '';
+    item.opts.forEach((opt,i)=>{
+      const li = document.createElement('li');
+      li.innerHTML = `<label style="cursor:pointer;"><input type="radio" name="opt" value="${i}" style="margin-right:8px"> ${opt}</label>`;
+      el.opts.appendChild(li);
+    });
+  }
+
+  function getSelected(){ const r = el.opts.querySelector('input[name="opt"]:checked'); return r?Number(r.value):null; }
+
+  el.submitBtn.addEventListener('click', () => {
+    if (answered) return;
+    const sel = getSelected();
+    if (sel === null) {
+      el.feedback.style.color = 'crimson';
+      el.feedback.textContent = 'Please select an option before submitting.';
+      return;
+    }
+    answered = true;
+    const correct = quiz[idx].a;
+    if (sel === correct) {
+      score++;
+      el.feedback.style.color = 'green';
+      el.feedback.textContent = '✅ Correct!';
+    } else {
+      el.feedback.style.color = 'darkred';
+      el.feedback.textContent = `❌ Incorrect. Correct answer: "${quiz[idx].opts[correct]}"`;
+    }
+    el.score.textContent = `Current score: ${score} / ${quiz.length}`;
+  });
+
+  el.nextBtn.addEventListener('click', () => {
+    if (!answered) {
+      if (!confirm('You have not submitted an answer. Skip this question?')) return;
+    }
+    if (idx < quiz.length - 1) {
+      idx++;
+      renderQuestion();
+    } else {
+      el.feedback.style.color = '#0b79d0';
+      el.feedback.textContent = '🎉 Quiz completed!';
+      el.score.textContent = `Final score: ${score} / ${quiz.length} (${Math.round(score/quiz.length*100)}%)`;
+      el.submitBtn.disabled=true;
+      el.nextBtn.disabled=true;
+    }
+  });
+
+  el.restartBtn.addEventListener('click', () => {
+    if (!confirm('Restart the quiz?')) return;
+    idx = 0; score = 0; el.submitBtn.disabled=false; el.nextBtn.disabled=false; renderQuestion();
+  });
+
+  renderQuestion();
+})();
+</script>
+</body>
+</html>
