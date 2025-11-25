@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>System Design — Interactive Quiz</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--muted:#9aa4b2;--accent:#06b6d4;--good:#16a34a;--bad:#ef4444}
+    *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial}
+    body{margin:0;background:linear-gradient(180deg,#071022 0,#081226 100%);color:#e6eef6;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
+    .app{width:100%;max-width:980px}
+    header{display:flex;align-items:center;gap:16px;margin-bottom:18px}
+    h1{font-size:20px;margin:0}
+    .meta{color:var(--muted);font-size:13px}
+    .controls{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+    button,select{background:var(--card);border:1px solid rgba(255,255,255,0.04);color:inherit;padding:8px 10px;border-radius:8px}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);padding:18px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
+    .question{font-size:18px;margin:6px 0 12px}
+    .options{display:flex;flex-direction:column;gap:8px}
+    .opt{padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);cursor:pointer}
+    .opt:hover{transform:translateY(-2px)}
+    .opt.correct{border-color:rgba(22,163,74,0.8);background:rgba(22,163,74,0.08)}
+    .opt.wrong{border-color:rgba(239,68,68,0.8);background:rgba(239,68,68,0.06)}
+    .footer{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+    .score{font-weight:600}
+    .progress{height:8px;background:rgba(255,255,255,0.04);border-radius:999px;overflow:hidden;margin-top:12px}
+    .progress > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#7c3aed);width:0%}
+    .sidebar{display:flex;gap:8px;flex-wrap:wrap}
+    .chip{background:rgba(255,255,255,0.02);padding:6px 8px;border-radius:999px;font-size:13px;border:1px solid rgba(255,255,255,0.03)}
+    .small{font-size:13px;color:var(--muted)}
+    .review{margin-top:14px}
+    pre{background:#071427;padding:10px;border-radius:8px;overflow:auto}
+    .hidden{display:none}
+    footer.small{margin-top:12px;color:var(--muted);font-size:13px}
+    a.readme{color:var(--accent);text-decoration:none}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div style="flex:1">
+        <h1>System Design — Interactive Quiz</h1>
+        <div class="meta">Quick chapters quiz built from your README. Use the controls to choose chapters & difficulty.</div>
+      </div>
+      <div class="sidebar">
+        <div class="chip">Questions: <span id="totalCount">0</span></div>
+        <div class="chip">Correct: <span id="correctCount">0</span></div>
+        <a class="readme" id="readme-link" href="/mnt/data/README.md" target="_blank">Open README</a>
+      </div>
+    </header>
+
+    <div class="controls">
+      <select id="chapterSelect" aria-label="Select chapter">
+        <option value="all">All Chapters</option>
+      </select>
+      <select id="modeSelect">
+        <option value="all">All Topics</option>
+        <option value="quick">Quick (10)</option>
+        <option value="medium">Medium (20)</option>
+        <option value="full">Full (all)</option>
+      </select>
+      <button id="startBtn">Start Quiz</button>
+      <button id="shuffleBtn">Shuffle Questions</button>
+      <button id="exportBtn">Export Results</button>
+    </div>
+
+    <div class="card">
+      <div id="quizArea">
+        <div id="intro">
+          <p class="small">This interactive quiz covers core system design topics: networking, databases, caching, architecture, scalability, and more. Click <strong>Start Quiz</strong> to begin. You can filter by chapter and change mode.</p>
+        </div>
+
+        <div id="questionCard" class="hidden">
+          <div class="question" id="questionText">Question text</div>
+          <div class="options" id="options"></div>
+
+          <div class="footer">
+            <div>
+              <button id="nextBtn" disabled>Next</button>
+              <button id="showExplainBtn" class="hidden">Show Explanation</button>
+            </div>
+            <div class="score">Score: <span id="score">0</span>/<span id="qIndex">0</span></div>
+          </div>
+          <div class="progress" aria-hidden="true"><i id="progressBar"></i></div>
+          <div id="explanation" class="review hidden"></div>
+        </div>
+
+        <div id="endCard" class="hidden">
+          <h3>Quiz finished!</h3>
+          <p class="small">You scored <strong id="finalScore">0</strong> out of <strong id="finalTotal">0</strong>.</p>
+          <div id="reviewList"></div>
+          <button id="restartBtn">Restart</button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="small">Built from your README at <code>/mnt/data/README.md</code>. If you want tweaks (more questions per topic, different styles, or Anki export), say so and I’ll update it.</footer>
+  </div>
+
+<script>
+// === Quiz data ===
+const QUESTIONS = [
+  // Chapter: Basics
+  {chapter:'Getting Started', q:'What is the primary goal of system design?', opts:['To write unit tests','To define architecture and data flows to meet requirements','To design UI only','To manage project timelines'], a:1, explanation:'System design defines architecture, interfaces and data to meet business requirements.'},
+  // Chapter I - IP
+  {chapter:'IP & Networking', q:'Which IP version provides the largest address space?', opts:['IPv4','IPv6','IPv5','IPv3'], a:1, explanation:'IPv6 uses 128-bit addresses and offers a vastly larger address space than IPv4.'},
+  {chapter:'IP & Networking', q:'A public IP is typically assigned by?', opts:['Your router','Your ISP','Your OS','Your application'], a:1, explanation:'Public IPs are provided by ISPs.'},
+  // OSI
+  {chapter:'OSI Model', q:'Which OSI layer is responsible for routing between networks?', opts:['Transport','Application','Network','Data Link'], a:2, explanation:'The Network layer handles routing and packet forwarding.'},
+  {chapter:'OSI Model', q:'Which OSI layer directly interacts with user-facing applications?', opts:['Presentation','Application','Physical','Session'], a:1, explanation:'The Application layer provides protocols for user applications (e.g., HTTP).'},
+  // TCP/UDP
+  {chapter:'TCP & UDP', q:'Which protocol provides ordered, reliable delivery?', opts:['UDP','TCP','ICMP','ARP'], a:1, explanation:'TCP is connection-oriented and guarantees ordered, reliable delivery.'},
+  {chapter:'TCP & UDP', q:'When is UDP preferred?', opts:['File transfer','Real-time streaming','Email','Bank transactions'], a:1, explanation:'UDP is preferred for low-latency real-time streaming where some packet loss is acceptable.'},
+  // DNS
+  {chapter:'DNS', q:'An A record in DNS maps a domain to which address type?', opts:['IPv6','IPv4','Mail server','Alias'], a:1, explanation:'A records map domains to IPv4 addresses.'},
+  {chapter:'DNS', q:'What is the role of a recursive resolver?', opts:['Store website content','Translate domain to IP by querying root/TLD/authoritative servers','Serve emails','Host DNS zones'], a:1, explanation:'A recursive resolver queries the DNS hierarchy to resolve names.'},
+  // Load Balancing
+  {chapter:'Load Balancing', q:'Which load balancing algorithm considers server response times and connection count?', opts:['Round-Robin','Least Connections','Least Response Time','Hashing'], a:2, explanation:'Least Response Time algorithm uses response time & connections.'},
+  {chapter:'Load Balancing', q:'An L7 load balancer operates at which OSI layer?', opts:['Layer 4 (Transport)','Layer 7 (Application)','Layer 3 (Network)','Layer 2 (Data Link)'], a:1, explanation:'L7 operates at the Application layer and can inspect content for routing.'},
+  // Clustering
+  {chapter:'Clustering', q:'Active-Active clustering means?', opts:['Single active node','Multiple nodes actively serving traffic','All nodes passive','Only databases active'], a:1, explanation:'Active-active has multiple nodes serving the same workload for load and redundancy.'},
+  {chapter:'Clustering', q:'One challenge of clustering is?', opts:['Simpler maintenance','Identical OS only','Complex installation and maintenance','No storage concerns'], a:2, explanation:'Clustering increases complexity for installation, updates, and storage sync.'},
+  // Caching
+  {chapter:'Caching', q:'What is a cache miss?', opts:['Data served from cache','Data not found in cache and fetched from backend','Cache serving stale data','When cache is full'], a:1, explanation:'A cache miss occurs when requested data is not in cache.'},
+  {chapter:'Caching', q:'Which eviction policy removes least recently used items?', opts:['LFU','LRU','FIFO','MRU'], a:1, explanation:'LRU (Least Recently Used) evicts items that haven\'t been used recently.'},
+  // CDN
+  {chapter:'CDN', q:'A CDN primarily helps with?', opts:['Backend compute','Static content delivery from edge locations','Database writes','DNS registration'], a:1, explanation:'CDNs serve static assets from edge servers for low latency.'},
+  {chapter:'CDN', q:'Push CDN differs from Pull CDN in that?', opts:['Push uploads content proactively to CDN nodes','Pull requires manual upload','Push is request-based','Pull never caches'], a:0, explanation:'Push CDNs require you to upload content to the CDN ahead of time.'},
+  // Proxy
+  {chapter:'Proxy', q:'A reverse proxy sits where?', opts:['In front of the client','Between client and servers, in front of origin servers','Only on client machines','Between DNS layers'], a:1, explanation:'A reverse proxy forwards client requests to backend servers and can add caching/security.'},
+  {chapter:'Proxy', q:'Which tool can act as a reverse proxy?', opts:['Nginx','Notepad','Excel','SSH'], a:0, explanation:'Nginx commonly acts as a reverse proxy and load balancer.'},
+  // Availability
+  {chapter:'Availability', q:'99.99% availability corresponds to roughly how much downtime per month?', opts:['4.32 minutes','43.8 minutes','7.2 hours','52.6 minutes'], a:0, explanation:'99.99% uptime ≈ 4.32 minutes downtime per month.'},
+  // Scalability
+  {chapter:'Scalability', q:'Horizontal scaling means?', opts:['Upgrading machine CPU/RAM','Adding more machines','Decreasing instances','Using a single big database'], a:1, explanation:'Horizontal scaling adds more machines to distribute load.'},
+  // Storage
+  {chapter:'Storage', q:'Which storage is object-based and ideal for massive scale (e.g., S3)?', opts:['Block storage','File storage','Object storage','RAID 0 only'], a:2, explanation:'Object storage (like S3) stores data as objects with metadata and scales well.'},
+  {chapter:'Storage', q:'RAID 1 is also known as?', opts:['Striping','Mirroring','Parity','Double parity'], a:1, explanation:'RAID 1 mirrors data across drives.'},
+  // Chapter II - Databases
+  {chapter:'Databases', q:'Which model guarantees ACID properties?', opts:['Most SQL databases','All NoSQL databases','Key-value stores only','Graph DBs only'], a:0, explanation:'Relational SQL databases commonly provide ACID guarantees.'},
+  {chapter:'Databases', q:'An N+1 problem typically results in?', opts:['Fewer queries','Many small additional queries causing slowness','Faster joins','No database access'], a:1, explanation:'N+1 arises when code issues many extra queries instead of batching them.'},
+  // Databases types
+  {chapter:'Databases', q:'MongoDB is an example of which DB type?', opts:['Relational','Document','Wide column','Time series'], a:1, explanation:'MongoDB is a document-oriented NoSQL database.'},
+  // High-level - System Design Interviews sample
+  {chapter:'Interviews', q:'When designing a URL Shortener, what is a key requirement?', opts:['High latency','Unique short IDs and redirection','Large image hosting','FTP support'], a:1, explanation:'URL shorteners must generate unique short IDs and redirect quickly.'}
+];
+
+// === App logic ===
+let state = {qs:[], idx:0, score:0, answers:[]};
+const chapterSelect = document.getElementById('chapterSelect');
+const modeSelect = document.getElementById('modeSelect');
+const startBtn = document.getElementById('startBtn');
+const shuffleBtn = document.getElementById('shuffleBtn');
+const exportBtn = document.getElementById('exportBtn');
+const totalCount = document.getElementById('totalCount');
+const correctCount = document.getElementById('correctCount');
+const questionCard = document.getElementById('questionCard');
+const questionText = document.getElementById('questionText');
+const optionsEl = document.getElementById('options');
+const nextBtn = document.getElementById('nextBtn');
+const showExplainBtn = document.getElementById('showExplainBtn');
+const explanationEl = document.getElementById('explanation');
+const scoreEl = document.getElementById('score');
+const qIndexEl = document.getElementById('qIndex');
+const progressBar = document.getElementById('progressBar');
+const endCard = document.getElementById('endCard');
+const finalScore = document.getElementById('finalScore');
+const finalTotal = document.getElementById('finalTotal');
+const reviewList = document.getElementById('reviewList');
+const restartBtn = document.getElementById('restartBtn');
+
+function populateChapters(){
+  const chapters = Array.from(new Set(QUESTIONS.map(q=>q.chapter)));
+  chapters.sort();
+  chapters.unshift('All Chapters');
+  chapters.forEach(ch=>{
+    const opt = document.createElement('option');
+    opt.value = ch;
+    opt.textContent = ch;
+    chapterSelect.appendChild(opt);
+  });
+}
+
+function buildPool(){
+  const chapter = chapterSelect.value;
+  const mode = modeSelect.value;
+  let pool = QUESTIONS.slice();
+  if(chapter && chapter!=='All Chapters') pool = pool.filter(q=>q.chapter===chapter);
+  if(mode==='quick') pool = pool.slice(0,10);
+  if(mode==='medium') pool = pool.slice(0,20);
+  if(mode==='all') pool = pool; // full
+  return pool;
+}
+
+function startQuiz(){
+  const pool = buildPool();
+  if(pool.length===0){alert('No questions for selected chapter/mode.');return}
+  state.qs = pool.slice();
+  shuffleArray(state.qs);
+  state.idx = 0; state.score=0; state.answers=[];
+  totalCount.textContent = state.qs.length;
+  correctCount.textContent = state.score;
+  scoreEl.textContent = state.score;
+  qIndexEl.textContent = `${state.idx}/${state.qs.length}`;
+  document.getElementById('intro').classList.add('hidden');
+  questionCard.classList.remove('hidden');
+  endCard.classList.add('hidden');
+  renderQuestion();
+}
+
+function renderQuestion(){
+  const cur = state.qs[state.idx];
+  questionText.textContent = `(${cur.chapter}) ${cur.q}`;
+  optionsEl.innerHTML = '';
+  cur.opts.forEach((opt,i)=>{
+    const div = document.createElement('div');
+    div.className = 'opt';
+    div.tabIndex = 0;
+    div.dataset.index = i;
+    div.textContent = opt;
+    div.addEventListener('click', ()=>selectOption(i,div));
+    optionsEl.appendChild(div);
+  });
+  nextBtn.disabled = true;
+  showExplainBtn.classList.add('hidden');
+  explanationEl.classList.add('hidden');
+  updateProgress();
+  qIndexEl.textContent = `${state.idx+1}/${state.qs.length}`;
+}
+
+function selectOption(i, el){
+  if(el.classList.contains('disabled')) return;
+  // mark
+  const cur = state.qs[state.idx];
+  const optsEls = optionsEl.querySelectorAll('.opt');
+  optsEls.forEach(o=>o.classList.add('disabled'));
+  if(i===cur.a){
+    el.classList.add('correct');
+    state.score += 1;
+    scoreEl.textContent = state.score;
+    correctCount.textContent = state.score;
+  } else {
+    el.classList.add('wrong');
+    // mark correct
+    const correctEl = optionsEl.querySelector('[data-index="'+cur.a+'"]');
+    if(correctEl) correctEl.classList.add('correct');
+  }
+  state.answers.push({q:cur.q, choice:i, correct: cur.a, chapter:cur.chapter});
+  nextBtn.disabled = false;
+  showExplainBtn.classList.remove('hidden');
+}
+
+nextBtn.addEventListener('click', ()=>{
+  if(state.idx+1 >= state.qs.length){ finishQuiz(); return }
+  state.idx += 1;
+  renderQuestion();
+});
+
+showExplainBtn.addEventListener('click', ()=>{
+  const cur = state.qs[state.idx];
+  explanationEl.innerHTML = `<strong>Explanation:</strong> <div style="margin-top:6px">${cur.explanation || '—'}</div>`;
+  explanationEl.classList.remove('hidden');
+});
+
+restartBtn.addEventListener('click', ()=>{
+  document.getElementById('intro').classList.remove('hidden');
+  questionCard.classList.add('hidden');
+  endCard.classList.add('hidden');
+});
+
+function finishQuiz(){
+  questionCard.classList.add('hidden');
+  endCard.classList.remove('hidden');
+  finalScore.textContent = state.score;
+  finalTotal.textContent = state.qs.length;
+  // build review
+  reviewList.innerHTML = '';
+  state.answers.forEach((a,i)=>{
+    const row = document.createElement('div');
+    row.style.padding='8px 0';
+    row.innerHTML = `<div><strong>Q${i+1} [${a.chapter}]</strong>: ${a.q}</div><div style="font-size:13px;margin-top:6px;color:var(--muted)">Your answer: ${a.choice} • Correct: ${a.correct}</div><hr>`;
+    reviewList.appendChild(row);
+  });
+}
+
+function updateProgress(){
+  const pct = Math.round(((state.idx) / state.qs.length) * 100);
+  progressBar.style.width = pct + '%';
+}
+
+function shuffleArray(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+}
+
+shuffleBtn.addEventListener('click', ()=>{
+  if(!state.qs || state.qs.length===0) return alert('Start a quiz first');
+  shuffleArray(state.qs); state.idx=0; state.score=0; state.answers=[]; renderQuestion();
+});
+
+startBtn.addEventListener('click', startQuiz);
+exportBtn.addEventListener('click', ()=>{
+  const payload = {score:state.score,total:state.qs.length,answers:state.answers};
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'quiz-results.json'; document.body.appendChild(a); a.click(); a.remove();
+});
+
+// init
+populateChapters();
+// show counts
+totalCount.textContent = QUESTIONS.length;
+
+</script>
+</body>
+</html>
